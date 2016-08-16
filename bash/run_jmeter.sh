@@ -96,11 +96,6 @@ for config_item in $KEYSTONE_CONFIGS; do
     $scen_exec_string
     echo "Scenario '$jmx_file' is finished."
 
-    percentilles_report_file="$(echo $jmx_file | cut -f 1 -d ".")_percentilles_report.csv"
-    synthesis_report_file="$(echo $jmx_file | cut -f 1 -d ".")_synthesis_report.csv"
-    $jmeter_node_ssh_connection "java -jar ~/$jmeter_dest_home/lib/ext/CMDRunner.jar --tool Reporter --generate-csv ~/$testresults_dest_home/$percentilles_report_file --input-jtl $jtl_filename_unescaped --plugin-type ResponseTimesPercentiles --start-offset 10 --end-offset 40"
-    $jmeter_node_ssh_connection "java -jar ~/$jmeter_dest_home/lib/ext/CMDRunner.jar --tool Reporter --generate-csv ~/$testresults_dest_home/$synthesis_report_file --input-jtl $jtl_filename_unescaped --plugin-type SynthesisReport --start-offset 10 --end-offset 40"
-
     test_plan_name=$($jmeter_node_ssh_connection cat $($jmeter_node_ssh_connection "echo ~/")$testresults_dest_home/$jmx_file | grep -oP 'testclass="TestPlan" testname="\K[^"]*')
     percentilles_report_file="$(echo $jmx_file | cut -f 1 -d ".")_percentilles_report.csv"
     synthesis_report_file="$(echo $jmx_file | cut -f 1 -d ".")_synthesis_report.csv"
