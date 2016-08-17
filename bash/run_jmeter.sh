@@ -10,7 +10,7 @@ utils_dest_home="$tests_basedir/utils"
 
 echo "Connecting to $FUEL_IP fuel-node..."
 ssh-keygen -f ~/.ssh/known_hosts -R $FUEL_IP
-sshpass -p r00tme scp root@$FUEL_IP:.ssh/id_rsa ~/jmeter_keystone_testenv.key
+rm ~/jmeter_keystone_testenv.key && sshpass -p r00tme scp -o StrictHostKeyChecking=no root@$FUEL_IP:.ssh/id_rsa ~/jmeter_keystone_testenv.key || exit 1
 
 fuel_ssh_connection="sshpass -p r00tme ssh -o StrictHostKeyChecking=no root@$FUEL_IP"
 
@@ -27,14 +27,13 @@ for compute in $compute_nodes; do
   fi
 done
 
-# Allowing direct access from all hosts to target JMeter-node (using internal node-ip)
+# Allowing direct access from all hosts to target JMeter-node (using internal node-ip). . .
 echo "Adding iptables rules (if they're not exist) allowing to access all hosts to target JMeter-node"
 $fuel_ssh_connection "ssh $jmeter_deployment_node_ip iptables -C INPUT -j ACCEPT" || $fuel_ssh_connection "ssh $jmeter_deployment_node_ip iptables -I INPUT -j ACCEPT"
 $fuel_ssh_connection "ssh $jmeter_deployment_node_ip iptables -C OUTPUT -j ACCEPT" || $fuel_ssh_connection "ssh $jmeter_deployment_node_ip iptables -I OUTPUT -j ACCEPT"
 
 # Dsicovering node-ip address using it's "br-ex" interface (public addresses feature should be set for computes before cluster deployment)
 jmeter_deployment_node_ip=$($fuel_ssh_connection "ssh $jmeter_deployment_node_ip" "ifconfig br-ex" | grep -oP '([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})' | head -n1) || exit 1
-
 echo "Deploying JMeter to $jmeter_deployment_node_ip compute node [fuel node-$jmeter_deployment_node_id]"
 
 # Set deployment node connection string using external node-ip ("br-ex" interface ip)
@@ -43,8 +42,6 @@ jmeter_node_ssh_connection="ssh -o IdentityFile=~/jmeter_keystone_testenv.key -o
 # Create target directory
 $jmeter_node_ssh_connection "(rm -r $tests_basedir 2>/dev/null || echo > /dev/null) && mkdir $tests_basedir" || exit 1
 
-
-echo "Deploying JMeter to $jmeter_deployment_node_ip host"
 # Installing java to JMeter-node if necessary
 java_packages=$($jmeter_node_ssh_connection "dpkg -l | grep -w 'openjdk\-8\-jdk\|jre' | tr -s \" \" | cut -f 2 -d \" \"") || exit 1
 java_pkgs_number=$(echo $java_packages | wc -l)
