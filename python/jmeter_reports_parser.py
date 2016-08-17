@@ -3,6 +3,7 @@
 '''
 import csv
 import re, os, glob, commands, sys
+from datetime import datetime
 from testrail import *
 from types import NoneType
 
@@ -11,7 +12,7 @@ if len(sys.argv) >= 3:
     jmx_home = sys.argv[2]
 else:
     jmx_home="/media/WORK_DATA/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
-    reports_home = '/var/lib/jenkins/workspace/RunJMeter/testrun_results_1procecces_2threads_05.08.2016_15-28-51/'
+    reports_home = '/media/WORK_DATA/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
 
 reports = {}
 test_cases = []
@@ -20,10 +21,11 @@ test_cases = []
 testrail_client = APIClient('https://mirantis.testrail.com/')
 testrail_client.user = 'sgudz@mirantis.com'
 testrail_client.password = 'qwertY123'
+test_suite_id = 4275
 
 #Getting expected result for each of test cases of test suite 4275 in TestRail
 testrail_expected_results = {}
-testrail_test_cases = testrail_client.send_get('get_cases/3&suite_id=4275')
+testrail_test_cases = testrail_client.send_get('get_cases/3&suite_id=' + str(test_suite_id))
 for testrail_test_case in testrail_test_cases:
     expected_results_list = {}
     test_expectations = testrail_test_case['custom_test_case_steps']
@@ -38,7 +40,7 @@ for testrail_test_case in testrail_test_cases:
 for jmx_name in glob.glob(jmx_home + "*.jmx"):
     f_content = open(jmx_name, "rb").read()
     curr_test_plan_name = re.search('testclass="TestPlan" testname="([^"]*)', f_content).group(1)
-    
+
     reports[curr_test_plan_name] = {}
     
     basename = os.path.splitext(os.path.basename(jmx_name))[0]    
@@ -71,7 +73,6 @@ for jmx_name in glob.glob(jmx_home + "*.jmx"):
                                                                                                                                     .replace('(', r'\(')\
                                                                                                                                     .replace(')', r'\)')
             parsed_record = operation_stats_record.split(",")
-            #reports[curr_test_plan_name][test_operation_name]['average'] = parsed_record[2]
             reports[curr_test_plan_name][test_operation_name]['std.dev.'] = parsed_record[6]
             reports[curr_test_plan_name][test_operation_name]['percent_of_errors'] = parsed_record[7].split("%")[0]
             reports[curr_test_plan_name][test_operation_name]['throughput'] = parsed_record[8]
@@ -79,9 +80,13 @@ for jmx_name in glob.glob(jmx_home + "*.jmx"):
 
 #print reports
 
-#Creating test run to save test results 
-test_run_id = testrail_client.send_post('add_run/3',{"suite_id": 4275,\
-                                             "name": "To_delete [integration example]",\
+#Creating test run to save test results
+product_version = "9.X" # Until it's not clarified where to get from
+repo_snapshot_id = "XXX" # Until it's not clarified where to get from
+test_suite_name = testrail_client.send_get('get_suite/' + str(test_suite_id))['name']
+test_run_name = "To_delete: {0} {1} #{2}-{3}".format(product_version, test_suite_name, repo_snapshot_id, datetime.now().strftime("%d/%m/%Y-%H:%M"))
+test_run_id = testrail_client.send_post('add_run/3',{"suite_id": test_suite_id,\
+                                             "name": test_run_name,\
                                              "assignedto_id": 89,\
                                              "milestone_id": 34,\
                                              "include_all": 0,\
