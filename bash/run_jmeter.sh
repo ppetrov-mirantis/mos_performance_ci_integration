@@ -32,7 +32,7 @@ echo "Adding iptables rules (if they're not exist) allowing to access all hosts 
 $fuel_ssh_connection "ssh $jmeter_deployment_node_ip iptables -C INPUT -j ACCEPT" || $fuel_ssh_connection "ssh $jmeter_deployment_node_ip iptables -I INPUT -j ACCEPT"
 $fuel_ssh_connection "ssh $jmeter_deployment_node_ip iptables -C OUTPUT -j ACCEPT" || $fuel_ssh_connection "ssh $jmeter_deployment_node_ip iptables -I OUTPUT -j ACCEPT"
 
-# Dsicovering node-ip address (using it's "br-ex" interface)
+# Dsicovering node-ip address using it's "br-ex" interface (public addresses feature should be set for computes before cluster deployment)
 jmeter_deployment_node_ip=$($fuel_ssh_connection "ssh $jmeter_deployment_node_ip" "ifconfig br-ex" | grep -oP '([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})' | head -n1) || exit 1
 
 echo "Deploying JMeter to $jmeter_deployment_node_ip compute node [fuel node-$jmeter_deployment_node_id]"
@@ -41,19 +41,19 @@ echo "Deploying JMeter to $jmeter_deployment_node_ip compute node [fuel node-$jm
 jmeter_node_ssh_connection="ssh -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no root@$jmeter_deployment_node_ip"
 
 # Create target directory
-$jmeter_node_ssh_connection "rm -rf $tests_basedir && mkdir $tests_basedir" || exit 1
+$jmeter_node_ssh_connection "(rm -r $tests_basedir 2>/dev/null || echo > /dev/null) && mkdir $tests_basedir" || exit 1
 
 
 echo "Deploying JMeter to $jmeter_deployment_node_ip host"
 # Installing java to JMeter-node if necessary
-java_packeges=$($jmeter_node_ssh_connection "dpkg -l | grep -w 'openjdk\-8\-jdk\|jre' | tr -s \" \" | cut -f 2 -d \" \"") || exit 1
-java_pack_amount=$($java_packeges | wc -l)
-if [ $java_pack_amount -lt 1 ]
+java_packages=$($jmeter_node_ssh_connection "dpkg -l | grep -w 'openjdk\-8\-jdk\|jre' | tr -s \" \" | cut -f 2 -d \" \"") || exit 1
+java_pkgs_number=$(echo $java_packages | wc -l)
+if [ $java_pkgs_number -lt 1 ]
   then
     echo "Installing java..."
     $jmeter_node_ssh_connection "apt-get --yes install openjdk-8-jre" || exit 1
   else
-    echo "Java packages are already installed: $java_packeges"
+    echo "Java packages are already installed: $java_packages"
 fi
 
 source_path=$jmeter_env_archpath/$jmeter_env_archname
