@@ -50,7 +50,7 @@ for jmx_name in glob.glob(jmx_home + "*.jmx"):
     # Extracting percentiles metrics
     with open(percentiles_file, 'rb') as synth_report_csv_file:        
         fields = csv.DictReader(synth_report_csv_file, quoting=csv.QUOTE_NONE).fieldnames
-        statistic_records = commands.getstatusoutput("cat " + percentiles_file + " | grep -iE '^(50\.0)'")[1].split("\n")
+        statistic_records = commands.getstatusoutput("cat " + percentiles_file + " | grep -iE '^(50\.0|90\.0)'")[1].split("\n")
         
         for index in range(len(fields)):
             test_operation_name = fields[index]            
@@ -74,7 +74,7 @@ for jmx_name in glob.glob(jmx_home + "*.jmx"):
                                                                                                                                     .replace(')', r'\)')
             parsed_record = operation_stats_record.split(",")
             reports[curr_test_plan_name][test_operation_name]['std.dev.'] = parsed_record[6]
-            reports[curr_test_plan_name][test_operation_name]['percent_of_errors'] = parsed_record[7].split("%")[0]
+            reports[curr_test_plan_name][test_operation_name]['errors_percent'] = parsed_record[7].split("%")[0]
             reports[curr_test_plan_name][test_operation_name]['throughput'] = parsed_record[8]
 
 
@@ -99,9 +99,11 @@ for test_report in reports.keys():
         # Extract testCase Id for TestRail (those Ids were created while testSuite creation
         # and written down into JMeter tests for future results mapping)
         test_case_id = test_operation.split("#id")[1]
-        median = int(float(test_operations.get(test_operation)['percentiles']['50.0']))
-        stdev = int(float(test_operations.get(test_operation)['std.dev.']))
         
+        test_operation_stats = test_operations.get(test_operation)
+        median = int(float(test_operation_stats['percentiles']['50.0']))
+        stdev = int(float(test_operation_stats['std.dev.']))
+        print test_operation_stats
         # Starting "custom_test_case_steps_results" populating for a current test case
         testrail_all_additional_results = []
         low_rps = True
@@ -110,31 +112,31 @@ for test_report in reports.keys():
         high_resp_time_stdev = True
         
         for param_name, expected_value in testrail_expected_results.get(int(test_case_id)).items():              
-            if param_name == u'Check [Real RPS]':
-                actual = test_operations.get(test_operation)['throughput']
+            if param_name == u'Check [Real Throughput; rps]':
+                actual = test_operation_stats['throughput']
                 if int(float(actual)) >= int(expected_value)*0.9:
                     low_rps = False
                     status_id = 1
                 else:
                     status_id = 5
-            elif param_name == u'Check [Percent of Errors]':
-                actual = test_operations.get(test_operation)['percent_of_errors']
+            elif param_name == u'Check [Errors; percent]':
+                actual = test_operation_stats['errors_percent']
                 if int(float(actual)) < int(expected_value):
                     many_errors = False
                     status_id = 1
                 else:
-                    status_id = 5                
-            elif param_name == u'Check [ResponseTime Median, ms]':
+                    status_id = 5
+            elif param_name == u'Check [Response Time Median; 50_percentile_ms]':
                 actual = str(median)
                 if int(float(actual)) <= int(float(expected_value))*1.1:
                     high_resp_time_median = False
                     status_id = 1
                 else:
-                    status_id = 5                    
-            elif param_name == u'Check [ResponseTime Stdev, ms]':
-                actual = str(stdev)
+                    status_id = 5
+            elif param_name == u'Check [Response Time 90% Line; 90_percentile_ms]':
+                actual = test_operation_stats['percentiles']['90.0']
                 if int(float(actual)) <= int(float(expected_value))*1.1:
-                    high_resp_time_stdev = False
+                    high_resp_time_median = False
                     status_id = 1
                 else:
                     status_id = 5
@@ -150,6 +152,4 @@ for test_report in reports.keys():
         print testrail_client.send_post("add_result_for_case/" + str(test_run_id) + "/" + test_case_id, {"status_id": test_case_global_status_id,\
                                                                                               "created_by": 89,\
                                                                                               "comment":"All the results are pointed in milliseconds.",
-                                                                                              "custom_throughput":median,\
-                                                                                              "custom_stdev":stdev,\
                                                                                               "custom_test_case_steps_results":testrail_all_additional_results})
