@@ -11,8 +11,10 @@ if len(sys.argv) >= 3:
     reports_home = sys.argv[1]
     jmx_home = sys.argv[2]
 else:
-    jmx_home="/media/WORK_DATA/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
-    reports_home = '/media/WORK_DATA/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
+    #jmx_home="/media/WORK_DATA/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
+    jmx_home="/media/mirantis_ws_disk/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
+    #reports_home = '/media/WORK_DATA/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
+    reports_home = '/media/mirantis_ws_disk/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
 
 reports = {}
 test_cases = []
@@ -77,7 +79,6 @@ for jmx_name in glob.glob(jmx_home + "*.jmx"):
             reports[curr_test_plan_name][test_operation_name]['errors_percent'] = parsed_record[7].split("%")[0]
             reports[curr_test_plan_name][test_operation_name]['throughput'] = parsed_record[8]
 
-
 #print reports
 
 #Creating test run to save test results
@@ -103,50 +104,44 @@ for test_report in reports.keys():
         test_operation_stats = test_operations.get(test_operation)
         median = int(float(test_operation_stats['percentiles']['50.0']))
         stdev = int(float(test_operation_stats['std.dev.']))
-        print test_operation_stats
+        
         # Starting "custom_test_case_steps_results" populating for a current test case
         testrail_all_additional_results = []
         low_rps = True
         many_errors = True
         high_resp_time_median = True
-        high_resp_time_stdev = True
+        high_90_percentile = True
         
-        for param_name, expected_value in testrail_expected_results.get(int(test_case_id)).items():              
+        for param_name, expected_value in testrail_expected_results.get(int(test_case_id)).items():
+            status_id = 5 # Default TestStep status. Can be changed below.
+                          
             if param_name == u'Check [Real Throughput; rps]':
                 actual = test_operation_stats['throughput']
                 if int(float(actual)) >= int(expected_value)*0.9:
                     low_rps = False
                     status_id = 1
-                else:
-                    status_id = 5
             elif param_name == u'Check [Errors; percent]':
                 actual = test_operation_stats['errors_percent']
                 if int(float(actual)) < int(expected_value):
                     many_errors = False
                     status_id = 1
-                else:
-                    status_id = 5
             elif param_name == u'Check [Response Time Median; 50_percentile_ms]':
                 actual = str(median)
                 if int(float(actual)) <= int(float(expected_value))*1.1:
                     high_resp_time_median = False
                     status_id = 1
-                else:
-                    status_id = 5
             elif param_name == u'Check [Response Time 90% Line; 90_percentile_ms]':
                 actual = test_operation_stats['percentiles']['90.0']
                 if int(float(actual)) <= int(float(expected_value))*1.1:
-                    high_resp_time_median = False
+                    high_90_percentile = False
                     status_id = 1
-                else:
-                    status_id = 5
                     
-            testrail_all_additional_results.append({u'content':param_name,u'expected':expected_value,u'actual':actual,u'status_id':status_id})        
+            testrail_all_additional_results.append({u'content':param_name,u'expected':expected_value,u'actual':actual,u'status_id':status_id})
         #print testrail_all_additional_results
         
         #Set overall "status_id" for test case based on results for each metric 
         test_case_global_status_id = 1
-        if (low_rps or many_errors or high_resp_time_median or high_resp_time_stdev): test_case_global_status_id = 5
+        if (low_rps or many_errors or high_resp_time_median or high_90_percentile): test_case_global_status_id = 5
         
         #Sending results to TestRail
         print testrail_client.send_post("add_result_for_case/" + str(test_run_id) + "/" + test_case_id, {"status_id": test_case_global_status_id,\
