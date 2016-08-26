@@ -1,4 +1,5 @@
 # Source dirs
+#jmeter_env_archname="jmeter_long_tests.tar.gz"
 jmeter_env_archname="jmeter_tests.tar.gz"
 jmeter_env_archpath="/media/WORK_DATA/Code/deployment_n_configuring/ci_automation"
 # Destination dirs
@@ -10,11 +11,11 @@ utils_dest_home="$tests_basedir/utils"
 
 echo "Connecting to $FUEL_IP fuel-node..."
 ssh-keygen -f ~/.ssh/known_hosts -R $FUEL_IP
-rm ~/jmeter_keystone_testenv.key && sshpass -p r00tme scp -o StrictHostKeyChecking=no root@$FUEL_IP:.ssh/id_rsa ~/jmeter_keystone_testenv.key || exit 1
+(rm ~/jmeter_keystone_testenv.key 2>/dev/null || echo > /dev/null) && sshpass -p r00tme scp -o StrictHostKeyChecking=no root@$FUEL_IP:.ssh/id_rsa ~/jmeter_keystone_testenv.key || exit 1
 
 fuel_ssh_connection="sshpass -p r00tme ssh -o StrictHostKeyChecking=no root@$FUEL_IP"
 
-# Getting address of host to deploy and run tests. 
+# Getting address of host to deploy and run tests.
 jmeter_deployment_node_id=10000
 jmeter_deployment_node_ip=''
 compute_nodes=$($fuel_ssh_connection "fuel nodes" | grep compute | cut -f 1,5 -d "|" | tr -d " " | sort) || exit 1
@@ -42,9 +43,9 @@ jmeter_node_ssh_connection="ssh -o IdentityFile=~/jmeter_keystone_testenv.key -o
 # Create target directory
 $jmeter_node_ssh_connection "(rm -r $tests_basedir 2>/dev/null || echo > /dev/null) && mkdir $tests_basedir" || exit 1
 
-# Installing java to JMeter-node if necessary
-java_packages=$($jmeter_node_ssh_connection "dpkg -l | grep -w 'openjdk\-8\-jdk\|jre' | tr -s \" \" | cut -f 2 -d \" \"") || exit 1
-java_pkgs_number=$(echo $java_packages | wc -l)
+# Install java to JMeter-node if necessary
+java_pkgs_number=$($jmeter_node_ssh_connection "dpkg-query -l *jre | grep ii | tr -s \" \" | cut -f 2 -d \" \"" | wc -l) || exit 1
+echo "java_pkgs_number $java_pkgs_number"
 if [ $java_pkgs_number -lt 1 ]
   then
     echo "Installing java..."
@@ -53,6 +54,7 @@ if [ $java_pkgs_number -lt 1 ]
     echo "Java packages are already installed: $java_packages"
 fi
 
+# Upload test infrastructure
 source_path=$jmeter_env_archpath/$jmeter_env_archname
 upload_path=$tests_basedir/$jmeter_env_archname
 jmeter_node_connect_to_upload="scp -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no $source_path root@$jmeter_deployment_node_ip:~/$upload_path"
@@ -62,7 +64,7 @@ $jmeter_node_connect_to_upload
 echo "Unpacking JMeter environment..."
 $jmeter_node_ssh_connection "tar -zxf $upload_path -C ~/$tests_basedir && chmod 755 ~/$tests_basedir -R"
 
-
+# Perform tests for keystone configurations
 echo "Will run tests for such configuration pairs of Keystone processes/threads: [$(echo $KEYSTONE_CONFIGS | tr \" \")]"
 for config_item in $KEYSTONE_CONFIGS; do
   ks_processes=$(echo $config_item | cut -f1 -d",")
@@ -85,15 +87,16 @@ for config_item in $KEYSTONE_CONFIGS; do
 
     jtl_filename_unescaped="$($jmeter_node_ssh_connection "echo ~/")$testresults_dest_home/$(echo $jmx_file | cut -f 1 -d ".").jtl" # obtaining fullpath for each *.jtl-file
     jtl_filename=$(echo $jtl_filename_unescaped | sed 's/[/_]/\\&/g') # escaping special symbols in the path string
-
     $jmeter_node_ssh_connection "sed -i -E 's/(<stringProp.*>).*.jtl(<\/stringProp>)/\1$jtl_filename\2/' ~/$scenarios_dest_home/$jmx_file" || exit 1 # replacing *.jtl-paths in scenarios
+    
     echo "\nExecuting scenario '$jmx_file' saving results to '$jtl_filename'"
-    scen_exec_string="$jmeter_node_ssh_connection ~/$jmeter_dest_home/bin/jmeter -n -t ~/$scenarios_dest_home/$jmx_file" || exit 1
+    estimated_test_duration=$($jmeter_node_ssh_connection "cat ~/$scenarios_dest_home/$jmx_file" | grep -oP '((?<=<stringProp name="Hold">)|(?<=<stringProp name="RampUp">))(.*)(?=</stringProp>)' | awk '{SUM += $1} END {print SUM}')
+    scen_exec_string="$jmeter_node_ssh_connection timeout --kill-after=5s --signal=9 $(($estimated_test_duration+10)) ~/$jmeter_dest_home/bin/jmeter -n -t ~/$scenarios_dest_home/$jmx_file" || exit 1
     echo $scen_exec_string
     $scen_exec_string
     echo "Scenario '$jmx_file' is finished."
 
-    test_plan_name=$($jmeter_node_ssh_connection cat $($jmeter_node_ssh_connection "echo ~/")$testresults_dest_home/$jmx_file | grep -oP 'testclass="TestPlan" testname="\K[^"]*')
+    test_plan_name=$($jmeter_node_ssh_connection cat $($jmeter_node_ssh_connection "echo ~/")$scenarios_dest_home/$jmx_file | grep -oP 'testclass="TestPlan" testname="\K[^"]*')
     percentilles_report_file="$(echo $jmx_file | cut -f 1 -d ".")_percentilles_report.csv"
     synthesis_report_file="$(echo $jmx_file | cut -f 1 -d ".")_synthesis_report.csv"
     echo "Building report for scenario "$test_plan_name""
@@ -101,10 +104,12 @@ for config_item in $KEYSTONE_CONFIGS; do
     $jmeter_node_ssh_connection "java -jar ~/$jmeter_dest_home/lib/ext/CMDRunner.jar --tool Reporter --generate-csv ~/$testresults_dest_home/$synthesis_report_file --input-jtl $jtl_filename_unescaped --plugin-type SynthesisReport --start-offset 20"
   done
 
+  # Save results to a local directory and send stats to TestRail
   results_storage_dir=$(printf "testrun_results_%sprocecces_%sthreads_$(date +%d.%m.%Y_%H-%M-%S)" $ks_processes $ks_threads)
   mkdir $results_storage_dir
+  echo "Saving results to TestRail. . ."  
+  $jmeter_node_ssh_connection "python ~/$utils_dest_home/jmeter_reports_parser.py ~/$testresults_dest_home/ ~/$scenarios_dest_home/ $estimated_test_duration $ks_processes $ks_threads"
   echo "Saving results to $(pwd)/$results_storage_dir on Jenkins node"
-  $jmeter_node_ssh_connection "python ~/$utils_dest_home/jmeter_reports_parser.py ~/$testresults_dest_home/ ~/$scenarios_dest_home/"
   scp -r -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no root@$jmeter_deployment_node_ip:~/$testresults_dest_home/* $results_storage_dir/ #&& $jmeter_node_ssh_connection "rm -r ~/$testresults_dest_home/*"
 
 done
