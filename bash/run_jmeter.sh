@@ -64,6 +64,7 @@ $jmeter_node_connect_to_upload
 echo "Unpacking JMeter environment..."
 $jmeter_node_ssh_connection "tar -zxf $upload_path -C ~/$tests_basedir && chmod 755 ~/$tests_basedir -R"
 
+$KEYSTONE_CONFIGS=6,3
 # Perform tests for keystone configurations
 echo "Will run tests for such configuration pairs of Keystone processes/threads: [$(echo $KEYSTONE_CONFIGS | tr \" \")]"
 for config_item in $KEYSTONE_CONFIGS; do
@@ -79,8 +80,11 @@ for config_item in $KEYSTONE_CONFIGS; do
     $fuel_ssh_connection ssh root@$controller_ip "sed -i 's/threads=[0-9]*/threads=$ks_threads/g' /etc/apache2/sites-enabled/05-keystone_wsgi_*"
     echo "Restarting Apache2 Server on $controller_ip controller node ..."
     $fuel_ssh_connection ssh root@$controller_ip "service apache2 restart"
-    #$fuel_ssh_connection ssh root@$controller_ip "cat /etc/apache2/sites-enabled/05-keystone_wsgi_* | grep WSGIDaemonProcess"
+    $fuel_ssh_connection ssh root@$controller_ip "cat /etc/apache2/sites-enabled/05-keystone_wsgi_* | grep WSGIDaemonProcess"
   done
+
+  # just wait after controllers restarted
+  sleep 120
 
   # Run Jmeter tests for current Keystone configuration
   for jmx_file in $($jmeter_node_ssh_connection "ls ~/$scenarios_dest_home | grep .jmx" || exit 1); do
@@ -91,7 +95,7 @@ for config_item in $KEYSTONE_CONFIGS; do
     
     echo "\nExecuting scenario '$jmx_file' saving results to '$jtl_filename'"
     estimated_test_duration=$($jmeter_node_ssh_connection "cat ~/$scenarios_dest_home/$jmx_file" | grep -oP '((?<=<stringProp name="Hold">)|(?<=<stringProp name="RampUp">))(.*)(?=</stringProp>)' | awk '{SUM += $1} END {print SUM}')
-    scen_exec_string="$jmeter_node_ssh_connection timeout --kill-after=5s --signal=9 $(($estimated_test_duration+10)) ~/$jmeter_dest_home/bin/jmeter -n -t ~/$scenarios_dest_home/$jmx_file" || exit 1
+    scen_exec_string="$jmeter_node_ssh_connection timeout --kill-after=5s --signal=9 120 ~/$jmeter_dest_home/bin/jmeter -n -t ~/$scenarios_dest_home/$jmx_file" || exit 1
     echo $scen_exec_string
     $scen_exec_string
     echo "Scenario '$jmx_file' is finished."
@@ -110,6 +114,6 @@ for config_item in $KEYSTONE_CONFIGS; do
   echo "Saving results to TestRail. . ."  
   $jmeter_node_ssh_connection "python ~/$utils_dest_home/jmeter_reports_parser.py ~/$testresults_dest_home/ ~/$scenarios_dest_home/ $estimated_test_duration $ks_processes $ks_threads"
   echo "Saving results to $(pwd)/$results_storage_dir on Jenkins node"
-  scp -r -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no root@$jmeter_deployment_node_ip:~/$testresults_dest_home/* $results_storage_dir/ #&& $jmeter_node_ssh_connection "rm -r ~/$testresults_dest_home/*"
+  scp -r -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no root@$jmeter_deployment_node_ip:~/$testresults_dest_home/* $results_storage_dir/ && $jmeter_node_ssh_connection "rm -r ~/$testresults_dest_home/*"
 
 done
