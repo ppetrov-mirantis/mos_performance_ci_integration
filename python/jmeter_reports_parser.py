@@ -7,14 +7,18 @@ from datetime import datetime
 from testrail import *
 from types import NoneType
 
-if len(sys.argv) >= 3:
+if len(sys.argv) >= 4:
     reports_home = sys.argv[1]
     jmx_home = sys.argv[2]
+    estimated_test_duration = "**Test duration:** " + str(sys.argv[3]) + " secs."
+    keystone_configuration = "\nEach controller was configured to use _**{0}** Keystone processes_ and _**{1}** threads_ per process".format(str(sys.argv[4]), str(sys.argv[5]))
 else:
-    #jmx_home="/media/WORK_DATA/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
-    jmx_home="/media/mirantis_ws_disk/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
-    #reports_home = '/media/WORK_DATA/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
-    reports_home = '/media/mirantis_ws_disk/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
+    jmx_home="/media/WORK_DATA/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
+    #jmx_home="/media/mirantis_ws_disk/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
+    reports_home = '/media/WORK_DATA/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
+    #reports_home = '/media/mirantis_ws_disk/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
+    estimated_test_duration = "not logged"
+    keystone_configuration = "\nKeystone configuration is unknown"
 
 reports = {}
 test_cases = []
@@ -120,7 +124,7 @@ for test_report in reports.keys():
                 if int(float(actual)) >= int(expected_value)*0.9:
                     low_rps = False
                     status_id = 1
-            elif param_name == u'Check [Errors; percent]':
+            elif param_name == u'Check [Errors percent; percent]':
                 actual = test_operation_stats['errors_percent']
                 if int(float(actual)) < int(expected_value):
                     many_errors = False
@@ -146,5 +150,5 @@ for test_report in reports.keys():
         #Sending results to TestRail
         print testrail_client.send_post("add_result_for_case/" + str(test_run_id) + "/" + test_case_id, {"status_id": test_case_global_status_id,\
                                                                                               "created_by": 89,\
-                                                                                              "comment":"All the results are pointed in milliseconds.",
+                                                                                              "comment": estimated_test_duration + keystone_configuration,\
                                                                                               "custom_test_case_steps_results":testrail_all_additional_results})
