@@ -94,7 +94,7 @@ for config_item in $KEYSTONE_CONFIGS; do
     
     echo "\nExecuting scenario '$jmx_file' saving results to '$jtl_filename'"
     estimated_test_duration=$($jmeter_node_ssh_connection "cat ~/$scenarios_dest_home/$jmx_file" | grep -oP '((?<=<stringProp name="Hold">)|(?<=<stringProp name="RampUp">))(.*)(?=</stringProp>)' | awk '{SUM += $1} END {print SUM}')
-    scen_exec_string="$jmeter_node_ssh_connection timeout --kill-after=5s --signal=9 120 ~/$jmeter_dest_home/bin/jmeter -n -t ~/$scenarios_dest_home/$jmx_file" || exit 1
+    scen_exec_string="$jmeter_node_ssh_connection timeout --kill-after=5s --signal=9 $((estimated_test_duration+10)) ~/$jmeter_dest_home/bin/jmeter -n -t ~/$scenarios_dest_home/$jmx_file" || exit 1
     echo $scen_exec_string
     $scen_exec_string
     echo "Scenario '$jmx_file' is finished."
