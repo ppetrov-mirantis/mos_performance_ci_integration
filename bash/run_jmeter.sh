@@ -64,7 +64,6 @@ $jmeter_node_connect_to_upload
 echo "Unpacking JMeter environment..."
 $jmeter_node_ssh_connection "tar -zxf $upload_path -C ~/$tests_basedir && chmod 755 ~/$tests_basedir -R"
 
-$KEYSTONE_CONFIGS=6,3
 # Perform tests for keystone configurations
 echo "Will run tests for such configuration pairs of Keystone processes/threads: [$(echo $KEYSTONE_CONFIGS | tr \" \")]"
 for config_item in $KEYSTONE_CONFIGS; do
