@@ -16,7 +16,7 @@ ssh-keygen -f ~/.ssh/known_hosts -R $FUEL_IP
 fuel_ssh_connection="sshpass -p r00tme ssh -o StrictHostKeyChecking=no root@$FUEL_IP"
 
 # Getting address of host to deploy and run tests.
-jmeter_deployment_node_id=10000
+jmeter_deployment_node_id=1000000
 jmeter_deployment_node_ip=''
 compute_nodes=$($fuel_ssh_connection "fuel nodes" | grep compute | cut -f 1,5 -d "|" | tr -d " " | sort) || exit 1
 for compute in $compute_nodes; do
@@ -27,6 +27,11 @@ for compute in $compute_nodes; do
       jmeter_deployment_node_ip=$(echo $compute | cut -f 2 -d "|")
   fi
 done
+
+# Getting Keystone internal IP-address
+contoller_ip=$($fuel_ssh_connection "fuel nodes" | grep contr -m 1 | cut -f 5 -d "|" | tr -d " ")
+keystone_internal_ip=$($fuel_ssh_connection ssh $contoller_ip "cat openrc" | grep OS_AUTH_URL | grep -oP '([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})')
+echo "Keystone internal IP: $keystone_internal_ip"
 
 # Allowing direct access from all hosts to target JMeter-node (using internal node-ip). . .
 echo "Adding iptables rules (if they're not exist) allowing to access all hosts to target JMeter-node"
@@ -45,11 +50,10 @@ $jmeter_node_ssh_connection "(rm -r $tests_basedir 2>/dev/null || echo > /dev/nu
 
 # Install java to JMeter-node if necessary
 java_pkgs_number=$($jmeter_node_ssh_connection "dpkg-query -l *jre | grep ii | tr -s \" \" | cut -f 2 -d \" \"" | wc -l) || exit 1
-echo "java_pkgs_number $java_pkgs_number"
 if [ $java_pkgs_number -lt 1 ]
   then
     echo "Installing java..."
-    $jmeter_node_ssh_connection "apt-get --yes install openjdk-8-jre" || exit 1
+    $jmeter_node_ssh_connection "apt-get update && apt-get --yes install openjdk-8-jre" || exit 1
   else
     echo "Java packages are already installed: $java_packages"
 fi
@@ -90,7 +94,8 @@ for config_item in $KEYSTONE_CONFIGS; do
 
     jtl_filename_unescaped="$($jmeter_node_ssh_connection "echo ~/")$testresults_dest_home/$(echo $jmx_file | cut -f 1 -d ".").jtl" # obtaining fullpath for each *.jtl-file
     jtl_filename=$(echo $jtl_filename_unescaped | sed 's/[/_]/\\&/g') # escaping special symbols in the path string
-    $jmeter_node_ssh_connection "sed -i -E 's/(<stringProp.*>).*.jtl(<\/stringProp>)/\1$jtl_filename\2/' ~/$scenarios_dest_home/$jmx_file" || exit 1 # replacing *.jtl-paths in scenarios
+    $jmeter_node_ssh_connection "sed -i -E 's/(<stringProp.*>).*.jtl(<\/stringProp>)/\1$jtl_filename\2/' ~/$scenarios_dest_home/$jmx_file" || exit 1 # replacing *.jtl-paths for each scenario
+    $jmeter_node_ssh_connection "sed -i 's/\${KEYSTONE_IP}/$keystone_internal_ip/g' ~/$scenarios_dest_home/$jmx_file" || exit 1 # setting Keystone IP for each scenario
     
     echo "\nExecuting scenario '$jmx_file' saving results to '$jtl_filename'"
     estimated_test_duration=$($jmeter_node_ssh_connection "cat ~/$scenarios_dest_home/$jmx_file" | grep -oP '((?<=<stringProp name="Hold">)|(?<=<stringProp name="RampUp">))(.*)(?=</stringProp>)' | awk '{SUM += $1} END {print SUM}')
@@ -99,10 +104,9 @@ for config_item in $KEYSTONE_CONFIGS; do
     $scen_exec_string
     echo "Scenario '$jmx_file' is finished."
 
-    test_plan_name=$($jmeter_node_ssh_connection cat $($jmeter_node_ssh_connection "echo ~/")$scenarios_dest_home/$jmx_file | grep -oP 'testclass="TestPlan" testname="\K[^"]*')
     percentilles_report_file="$(echo $jmx_file | cut -f 1 -d ".")_percentilles_report.csv"
     synthesis_report_file="$(echo $jmx_file | cut -f 1 -d ".")_synthesis_report.csv"
-    echo "Building report for scenario "$test_plan_name""
+    echo "Building report for scenario "$jmx_file""
     $jmeter_node_ssh_connection "java -jar ~/$jmeter_dest_home/lib/ext/CMDRunner.jar --tool Reporter --generate-csv ~/$testresults_dest_home/$percentilles_report_file --input-jtl $jtl_filename_unescaped --plugin-type ResponseTimesPercentiles --start-offset 20"
     $jmeter_node_ssh_connection "java -jar ~/$jmeter_dest_home/lib/ext/CMDRunner.jar --tool Reporter --generate-csv ~/$testresults_dest_home/$synthesis_report_file --input-jtl $jtl_filename_unescaped --plugin-type SynthesisReport --start-offset 20"
   done
