@@ -115,8 +115,8 @@ for config_item in $KEYSTONE_CONFIGS; do
   results_storage_dir=$(printf "testrun_results_%sprocecces_%sthreads_$(date +%d.%m.%Y_%H-%M-%S)" $ks_processes $ks_threads)
   mkdir $results_storage_dir
   echo "Saving results to TestRail. . ."  
-  $jmeter_node_ssh_connection "python ~/$utils_dest_home/jmeter_reports_parser.py ~/$testresults_dest_home/ ~/$scenarios_dest_home/ $estimated_test_duration $ks_processes $ks_threads"
-  echo "Saving results to $(pwd)/$results_storage_dir on Jenkins node"
+  $jmeter_node_ssh_connection "python ~/$utils_dest_home/jmeter_reports_parser.py ~/$testresults_dest_home/ ~/$scenarios_dest_home/ $estimated_test_duration $ks_processes $ks_threads $SNAPSHOT $FUEL_IP $jmeter_deployment_node_ip"
+  echo "Saving result files to $(pwd)/$results_storage_dir directory on Jenkins node"
   scp -r -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no root@$jmeter_deployment_node_ip:~/$testresults_dest_home/* $results_storage_dir/ && $jmeter_node_ssh_connection "rm -r ~/$testresults_dest_home/*"
 
 done

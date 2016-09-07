@@ -7,11 +7,13 @@ from datetime import datetime
 from testrail import *
 from types import NoneType
 
-if len(sys.argv) >= 4:
+if len(sys.argv) >= 9:
     reports_home = sys.argv[1]
     jmx_home = sys.argv[2]
     estimated_test_duration = "**Test duration:** " + str(sys.argv[3]) + " secs."
     keystone_configuration = "\nEach controller was configured to use _**{0}** Keystone processes_ and _**{1}** threads_ per process".format(str(sys.argv[4]), str(sys.argv[5]))
+    repo_snapshot_id = str(sys.argv[6])
+    cluster_config = "\n**Masternode IP:** {0} \n**JMeter node IP:** {1}".format(str(sys.argv[7]), str(sys.argv[8]))
 else:
     jmx_home="/media/WORK_DATA/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
     #jmx_home="/media/mirantis_ws_disk/Installs/test tools/JMeter/apache-jmeter-3.0/bin/"
@@ -19,6 +21,8 @@ else:
     #reports_home = '/media/mirantis_ws_disk/Code/deployment_n_configuring/ci_automation/testrun_results_6procecces_3threads_09.08.2016_17-06-07/'
     estimated_test_duration = "not logged"
     keystone_configuration = "\nKeystone configuration is unknown"
+    repo_snapshot_id = "XXX"
+    cluster_config = "\n**Masternode IP:** unknown \n**JMeter node IP:** unknown"
 
 reports = {}
 test_cases = []
@@ -87,7 +91,6 @@ for jmx_name in glob.glob(jmx_home + "*.jmx"):
 
 #Creating test run to save test results
 product_version = "9.X" # Until it's not clarified where to get from
-repo_snapshot_id = "XXX" # Until it's not clarified where to get from
 test_suite_name = testrail_client.send_get('get_suite/' + str(test_suite_id))['name']
 test_run_name = "To_delete: {0} {1} #{2}-{3}".format(product_version, test_suite_name, repo_snapshot_id, datetime.now().strftime("%d/%m/%Y-%H:%M"))
 test_run_id = testrail_client.send_post('add_run/3',{"suite_id": test_suite_id,\
@@ -148,7 +151,8 @@ for test_report in reports.keys():
         if (low_rps or many_errors or high_resp_time_median or high_90_percentile): test_case_global_status_id = 5
         
         #Sending results to TestRail
+        testrun_comment = estimated_test_duration + keystone_configuration + cluster_config
         print testrail_client.send_post("add_result_for_case/" + str(test_run_id) + "/" + test_case_id, {"status_id": test_case_global_status_id,\
                                                                                               "created_by": 89,\
-                                                                                              "comment": estimated_test_duration + keystone_configuration,\
+                                                                                              "comment": testrun_comment,\
                                                                                               "custom_test_case_steps_results":testrail_all_additional_results})
