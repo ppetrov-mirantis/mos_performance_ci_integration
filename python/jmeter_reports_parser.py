@@ -92,7 +92,7 @@ for jmx_name in glob.glob(jmx_home + "*.jmx"):
 #Creating test run to save test results
 product_version = "9.X" # Until it's not clarified where to get from
 test_suite_name = testrail_client.send_get('get_suite/' + str(test_suite_id))['name']
-test_run_name = "To_delete: {0} {1} #{2}-{3}".format(product_version, test_suite_name, repo_snapshot_id, datetime.now().strftime("%d/%m/%Y-%H:%M"))
+test_run_name = "{0} {1} #{2}-{3}".format(product_version, test_suite_name, repo_snapshot_id, datetime.now().strftime("%d/%m/%Y-%H:%M"))
 test_run_id = testrail_client.send_post('add_run/3',{"suite_id": test_suite_id,\
                                              "name": test_run_name,\
                                              "assignedto_id": 89,\
