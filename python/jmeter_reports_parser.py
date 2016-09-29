@@ -28,9 +28,9 @@ reports = {}
 test_cases = []
 
 # Connecting to TestRail
-testrail_client = APIClient('https://mirantis.testrail.com/')
-testrail_client.user = 'sgudz@mirantis.com'
-testrail_client.password = 'qwertY123'
+testrail_client = APIClient('https://!!!/')
+testrail_client.user = '!!!@mirantis.com'
+testrail_client.password = '!!!'
 test_suite_id = 4275
 
 #Getting expected result for each of test cases of test suite 4275 in TestRail
