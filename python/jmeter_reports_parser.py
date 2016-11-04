@@ -28,12 +28,12 @@ reports = {}
 test_cases = []
 
 # Connecting to TestRail
-testrail_client = APIClient('https://!!!/')
-testrail_client.user = '!!!@mirantis.com'
-testrail_client.password = '!!!'
-test_suite_id = 4275
+testrail_client = APIClient('https://mirantis.testrail.com/')
+testrail_client.user = 'user'
+testrail_client.password = 'password'
+test_suite_id = 6868
 
-#Getting expected result for each of test cases of test suite 4275 in TestRail
+#Getting expected result for each of test cases of test suite 6868 in TestRail
 testrail_expected_results = {}
 testrail_test_cases = testrail_client.send_get('get_cases/3&suite_id=' + str(test_suite_id))
 for testrail_test_case in testrail_test_cases:
@@ -90,13 +90,13 @@ for jmx_name in glob.glob(jmx_home + "*.jmx"):
 #print reports
 
 #Creating test run to save test results
-product_version = "9.X" # Until it's not clarified where to get from
+product_version = "9.2" # Until it's not clarified where to get from
 test_suite_name = testrail_client.send_get('get_suite/' + str(test_suite_id))['name']
 test_run_name = "{0} {1} #{2}-{3}".format(product_version, test_suite_name, repo_snapshot_id, datetime.now().strftime("%d/%m/%Y-%H:%M"))
 test_run_id = testrail_client.send_post('add_run/3',{"suite_id": test_suite_id,\
                                              "name": test_run_name,\
-                                             "assignedto_id": 89,\
-                                             "milestone_id": 34,\
+                                             "assignedto_id": 24,\
+                                             "milestone_id": 35,\
                                              "include_all": 0,\
                                              "case_ids": test_cases})['id']
 
