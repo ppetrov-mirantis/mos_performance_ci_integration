@@ -9,11 +9,14 @@ scenarios_dest_home="$tests_basedir/scenarios"
 testresults_dest_home="$tests_basedir/results"
 utils_dest_home="$tests_basedir/utils"
 
+login=""
+password=""
+
 echo "Connecting to $FUEL_IP fuel-node..."
 ssh-keygen -f ~/.ssh/known_hosts -R $FUEL_IP
-(rm ~/jmeter_keystone_testenv.key 2>/dev/null || echo > /dev/null) && sshpass -p r00tme scp -o StrictHostKeyChecking=no root@$FUEL_IP:.ssh/id_rsa ~/jmeter_keystone_testenv.key || exit 1
+(rm ~/jmeter_keystone_testenv.key 2>/dev/null || echo > /dev/null) && sshpass -p $password scp -o StrictHostKeyChecking=no $login@$FUEL_IP:.ssh/id_rsa ~/jmeter_keystone_testenv.key || exit 1
 
-fuel_ssh_connection="sshpass -p r00tme ssh -o StrictHostKeyChecking=no root@$FUEL_IP"
+fuel_ssh_connection="sshpass -p $password ssh -o StrictHostKeyChecking=no $login@$FUEL_IP"
 
 # Getting address of host to deploy and run tests.
 jmeter_deployment_node_id=1000000
@@ -43,7 +46,7 @@ jmeter_deployment_node_ip=$($fuel_ssh_connection "ssh $jmeter_deployment_node_ip
 echo "Deploying JMeter to $jmeter_deployment_node_ip compute node [fuel node-$jmeter_deployment_node_id]"
 
 # Set deployment node connection string using external node-ip ("br-ex" interface ip)
-jmeter_node_ssh_connection="ssh -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no root@$jmeter_deployment_node_ip"
+jmeter_node_ssh_connection="ssh -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no $login@$jmeter_deployment_node_ip"
 
 # Create target directory
 $jmeter_node_ssh_connection "(rm -r $tests_basedir 2>/dev/null || echo > /dev/null) && mkdir $tests_basedir" || exit 1
@@ -53,7 +56,7 @@ java_pkgs_number=$($jmeter_node_ssh_connection "dpkg-query -l *jre | grep ii | t
 if [ $java_pkgs_number -lt 1 ]
   then
     echo "Installing java..."
-    $jmeter_node_ssh_connection "apt-get update && apt-get --yes install openjdk-8-jre" || exit 1
+    $jmeter_node_ssh_connection "apt-get update && apt-get --yes --force-yes install openjdk-8-jre" || exit 1
   else
     echo "Java packages are already installed: $java_packages"
 fi
@@ -61,7 +64,7 @@ fi
 # Upload test infrastructure
 source_path=$jmeter_env_archpath/$jmeter_env_archname
 upload_path=$tests_basedir/$jmeter_env_archname
-jmeter_node_connect_to_upload="scp -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no $source_path root@$jmeter_deployment_node_ip:~/$upload_path"
+jmeter_node_connect_to_upload="scp -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no $source_path $login@$jmeter_deployment_node_ip:~/$upload_path"
 echo "Uploading JMeter environment..."
 echo $jmeter_node_connect_to_upload
 $jmeter_node_connect_to_upload
@@ -79,11 +82,11 @@ for config_item in $KEYSTONE_CONFIGS; do
   controllers=$($fuel_ssh_connection "fuel nodes" | grep controller | cut -f 5 -d "|" | tr -d " " | sort) || exit 1
   for controller_ip in $controllers; do
     echo "\nReconfiguring $controller_ip controller node ..."
-    $fuel_ssh_connection ssh root@$controller_ip "sed -i 's/processes=[0-9]*/processes=$ks_processes/g' /etc/apache2/sites-enabled/05-keystone_wsgi_*"
-    $fuel_ssh_connection ssh root@$controller_ip "sed -i 's/threads=[0-9]*/threads=$ks_threads/g' /etc/apache2/sites-enabled/05-keystone_wsgi_*"
+    $fuel_ssh_connection ssh $login@$controller_ip "sed -i 's/processes=[0-9]*/processes=$ks_processes/g' /etc/apache2/sites-enabled/05-keystone_wsgi_*"
+    $fuel_ssh_connection ssh $login@$controller_ip "sed -i 's/threads=[0-9]*/threads=$ks_threads/g' /etc/apache2/sites-enabled/05-keystone_wsgi_*"
     echo "Restarting Apache2 Server on $controller_ip controller node ..."
-    $fuel_ssh_connection ssh root@$controller_ip "service apache2 restart"
-    $fuel_ssh_connection ssh root@$controller_ip "cat /etc/apache2/sites-enabled/05-keystone_wsgi_* | grep WSGIDaemonProcess"
+    $fuel_ssh_connection ssh $login@$controller_ip "service apache2 restart"
+    $fuel_ssh_connection ssh $login@$controller_ip "cat /etc/apache2/sites-enabled/05-keystone_wsgi_* | grep WSGIDaemonProcess"
   done
 
   # just wait after controllers restarted
@@ -117,6 +120,6 @@ for config_item in $KEYSTONE_CONFIGS; do
   echo "Saving results to TestRail. . ."  
   $jmeter_node_ssh_connection "python ~/$utils_dest_home/jmeter_reports_parser.py ~/$testresults_dest_home/ ~/$scenarios_dest_home/ $estimated_test_duration $ks_processes $ks_threads $SNAPSHOT $FUEL_IP $jmeter_deployment_node_ip"
   echo "Saving result files to $(pwd)/$results_storage_dir directory on Jenkins node"
-  scp -r -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no root@$jmeter_deployment_node_ip:~/$testresults_dest_home/* $results_storage_dir/ && $jmeter_node_ssh_connection "rm -r ~/$testresults_dest_home/*"
+  scp -r -o IdentityFile=~/jmeter_keystone_testenv.key -o StrictHostKeyChecking=no $login@$jmeter_deployment_node_ip:~/$testresults_dest_home/* $results_storage_dir/ && $jmeter_node_ssh_connection "rm -r ~/$testresults_dest_home/*"
 
 done
