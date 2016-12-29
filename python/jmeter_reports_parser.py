@@ -129,7 +129,7 @@ for test_report in reports.keys():
                     status_id = 1
             elif param_name == u'Check [Errors percent; percent]':
                 actual = test_operation_stats['errors_percent']
-                if int(float(actual)) <= int(expected_value):
+                if float(actual) <= float(expected_value):
                     many_errors = False
                     status_id = 1
             elif param_name == u'Check [Response Time Median; 50_percentile_ms]':
