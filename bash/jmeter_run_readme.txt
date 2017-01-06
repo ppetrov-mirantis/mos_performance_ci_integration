@@ -1,6 +1,6 @@
 
 1. С помощью переменных задать в сценарии такие параметры:
- - jmeter_env_archname, jmeter_env_archpath - источник архива с архивом тестовой инфраструктуры на файловой системе.
+ - jmeter_env_archname, jmeter_env_archpath - источник архива с тестовой инфраструктурой на файловой системе.
  - FUEL_IP - адрес fuel-master.
  - login/password - параметры входа на fuel-master
  - SNAPSHOT - номер тестируемой сборки (важно при отправке отчёта в TestRail)
