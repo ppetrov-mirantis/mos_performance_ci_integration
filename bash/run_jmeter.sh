@@ -100,7 +100,7 @@ for config_item in $KEYSTONE_CONFIGS; do
     $jmeter_node_ssh_connection "sed -i -E 's/(<stringProp.*>).*.jtl(<\/stringProp>)/\1$jtl_filename\2/' ~/$scenarios_dest_home/$jmx_file" || exit 1 # replacing *.jtl-paths for each scenario
     $jmeter_node_ssh_connection "sed -i 's/\${KEYSTONE_IP}/$keystone_internal_ip/g' ~/$scenarios_dest_home/$jmx_file" || exit 1 # setting Keystone IP for each scenario
     
-    echo "\nExecuting scenario '$jmx_file' saving results to '$jtl_filename'"
+    echo "\nExecuting scenario '$jmx_file' saving results to '$jtl_filename_unescaped'"
     estimated_test_duration=$($jmeter_node_ssh_connection "cat ~/$scenarios_dest_home/$jmx_file" | grep -oP '((?<=<stringProp name="Hold">)|(?<=<stringProp name="RampUp">))(.*)(?=</stringProp>)' | awk '{SUM += $1} END {print SUM}')
     scen_exec_string="$jmeter_node_ssh_connection timeout --kill-after=5s --signal=9 $((estimated_test_duration+10)) ~/$jmeter_dest_home/bin/jmeter -n -t ~/$scenarios_dest_home/$jmx_file" || exit 1
     echo $scen_exec_string
